@@ -22,7 +22,7 @@ function App() {
     formData.append("file", file);
 
     try {
-      const res = await fetch("http://localhost:8000/analyze", {
+      const res = await fetch("https://legal-doc-analyzer-backend-2wdq.onrender.com/analyze", {
         method: "POST",
         body: formData
       });
