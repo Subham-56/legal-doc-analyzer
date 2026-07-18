@@ -35,6 +35,8 @@ class Analysis(Base):
     result = Column(JSON)
     created_at = Column(DateTime, default=datetime.now)
 
+Base.metadata.create_all(bind=engine)
+
 @app.get("/")
 def read_root():
     return {"message": "Legal Doc Analyzer API is running"}
