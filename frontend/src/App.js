@@ -26,7 +26,19 @@ function App() {
         method: "POST",
         body: formData
       });
+
       const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.detail || "Something went wrong.");
+        return;
+      }
+
+      if (!Array.isArray(data)) {
+        setError("Unexpected response from server.");
+        return;
+      }
+      
       setResults(data);
     } catch (err) {
       setError("Something went wrong. Make sure the backend is running.");

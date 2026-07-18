@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
@@ -43,39 +43,58 @@ def read_root():
 
 @app.post("/analyze")
 async def analyze_document(file: UploadFile = File(...)):
-    contents = await file.read()
-    doc = fitz.open(stream=contents, filetype="pdf")
-    text = ""
-    for page in doc:
-        text += page.get_text()
+    if not file.filename.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+    try:
+        contents = await file.read()
+        doc = fitz.open(stream=contents, filetype="pdf")
+        text = ""
+        for page in doc:
+            text += page.get_text()
+        doc.close()
 
-    prompt = f"""
-    You are a legal document analyzer.
-    Analyze the following legal text and return a JSON array.
-    Each item must have exactly these fields:
-    - clause: the problematic clause from the text
-    - risk_level: either "high", "medium", or "low"
-    - explanation: plain English explanation of why it is risky
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="Could not extract text from PDF. It may be scanned or image-based.")
 
-    Return only a valid JSON array. No extra text. No markdown. No backticks.
+        prompt = f"""
+        You are a legal document analyzer.
+        Analyze the following legal text and return a JSON array.
+        Each item must have exactly these fields:
+        - clause: the problematic clause from the text
+        - risk_level: either "high", "medium", or "low"
+        - explanation: plain English explanation of why it is risky
 
-    Legal text: {text}
-    """
+        Return only a valid JSON array. No extra text. No markdown. No backticks.
 
-    response = client.models.generate_content(
-        model="gemini-3.5-flash",
-        contents=prompt
-    )
+        Legal text: {text}
+        """
 
-    result = json.loads(response.text)
+        response = client.models.generate_content(
+            model="gemini-3.5-flash",
+            contents=prompt
+        )
 
+        try:
+            result = json.loads(response.text)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=500, detail="AI returned invalid response. Please try again.")
+
+        if not isinstance(result, list):
+            raise HTTPException(status_code=500, detail="Unexpected AI response format.")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+    
     db = SessionLocal()
-    analysis = Analysis(
-        filename = file.filename,
-        result = result
-    )
-    db.add(analysis)
-    db.commit()
-    db.close()
+    try:
+        analysis = Analysis(filename = file.filename, result = result)
+        db.add(analysis)
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
 
     return JSONResponse(content=result)
