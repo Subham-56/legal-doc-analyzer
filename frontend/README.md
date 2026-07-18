@@ -1,162 +1,70 @@
-# AI Legal Document Analyzer
+# Getting Started with Create React App
 
-🔗 **Live Demo:** https://legal-doc-analyzer-dun.vercel.app  
-📁 **GitHub:** https://github.com/Subham-56/legal-doc-analyzer
+This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
-An AI-powered full-stack web application that analyzes legal PDF documents and identifies risky clauses with plain-English explanations and color-coded risk levels.
+## Available Scripts
 
----
+In the project directory, you can run:
 
-## Features
+### `npm start`
 
-- Upload any legal PDF — contracts, NDAs, rent agreements, employment offers
-- Extract and analyze text using Google Gemini AI
-- Classify each clause as high, medium, or low risk
-- Display color-coded results with plain-English explanations
-- Validate uploads and handle API failures gracefully
-- Store all analyses in PostgreSQL via SQLAlchemy
+Runs the app in the development mode.\
+Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
 
----
+The page will reload when you make changes.\
+You may also see any lint errors in the console.
 
-## Tech Stack
+### `npm test`
 
-| Layer | Technology |
-|---|---|
-| Frontend | React, Tailwind CSS |
-| Backend | FastAPI, Python |
-| AI | Google Gemini API |
-| PDF Parsing | PyMuPDF |
-| Database | PostgreSQL, SQLAlchemy |
-| Deployment | Vercel (frontend), Render (backend) |
+Launches the test runner in the interactive watch mode.\
+See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
 
----
+### `npm run build`
 
-## How It Works
+Builds the app for production to the `build` folder.\
+It correctly bundles React in production mode and optimizes the build for the best performance.
 
-1. User uploads a PDF from the React frontend
-2. Frontend sends the file to `POST /analyze` on the FastAPI backend
-3. Backend extracts text using PyMuPDF
-4. Extracted text is sent to Gemini with a structured prompt
-5. Gemini returns a JSON array of risky clauses with risk levels and explanations
-6. Backend validates the response and saves it to PostgreSQL
-7. Frontend renders each clause as a color-coded risk card
+The build is minified and the filenames include the hashes.\
+Your app is ready to be deployed!
 
----
+See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
 
-## Project Structure
+### `npm run eject`
 
-```text
-legal-doc-analyzer/
-├── backend/
-│   ├── main.py
-│   ├── requirements.txt
-│   ├── test_gemini.py
-│   └── test_pdf.py
-├── frontend/
-│   ├── public/
-│   └── src/
-│       ├── App.js
-│       ├── index.css
-│       └── index.js
-└── README.md
-```
+**Note: this is a one-way operation. Once you `eject`, you can't go back!**
 
----
+If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
 
-## Local Setup
+Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
 
-### Backend
+You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
 
-```bash
-cd backend
-pip install -r requirements.txt
-```
+## Learn More
 
-Create a `.env` file inside `backend/`:
+You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
 
-```env
-GEMINI_API_KEY=your_gemini_api_key
-DATABASE_URL=postgresql://username:password@localhost:5432/legaldoc
-```
+To learn React, check out the [React documentation](https://reactjs.org/).
 
-Start the server:
+### Code Splitting
 
-```bash
-uvicorn main:app --reload
-```
+This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
 
-API runs at `http://127.0.0.1:8000`  
-Interactive docs at `http://127.0.0.1:8000/docs`
+### Analyzing the Bundle Size
 
-### Frontend
+This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
 
-```bash
-cd frontend
-npm install
-npm start
-```
+### Making a Progressive Web App
 
-App runs at `http://localhost:3000`
+This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
 
-Update the API URL in `frontend/src/App.js` to point to `http://localhost:8000` for local development.
+### Advanced Configuration
 
----
+This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
 
-## API Reference
+### Deployment
 
-### `POST /analyze`
+This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
 
-Accepts a PDF file upload and returns a JSON array of risky clauses.
+### `npm run build` fails to minify
 
-**Request:** `multipart/form-data` with a `file` field containing a PDF
-
-**Response:**
-
-```json
-[
-  {
-    "clause": "The landlord may terminate this agreement without notice.",
-    "risk_level": "high",
-    "explanation": "This gives one party broad termination power with no protection for the other."
-  }
-]
-```
-
-**Error responses:**
-- `400` — Non-PDF file or unreadable document
-- `500` — AI response failure or server error
-
----
-
-## Error Handling
-
-- Rejects non-PDF uploads with a clear error message
-- Returns 400 if text cannot be extracted from scanned PDFs
-- Validates that AI response is a proper JSON array before rendering
-- Rolls back database session if persistence fails
-- Frontend displays error messages for all failure cases
-
----
-
-## Deployment
-
-- Frontend deployed on **Vercel** — auto-deploys on every GitHub push
-- Backend deployed on **Render** — free tier, spins down after inactivity
-- PostgreSQL hosted on **Render** free tier
-
----
-
-## Future Improvements
-
-- OCR support for scanned PDFs
-- User authentication and analysis history
-- Downloadable PDF reports
-- DOCX and image upload support
-- Move API URL to environment variables in frontend
-- Unit and integration tests
-
----
-
-## Resume Summary
-
-Built and deployed a full-stack AI legal document analysis platform using React, FastAPI, PostgreSQL, and Google Gemini API. The app extracts text from uploaded PDFs, evaluates clauses for legal risk, and returns structured plain-English explanations through a responsive web interface.
+This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
