@@ -1,10 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 function App() {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetch("https://legal-doc-analyzer-backend-2wdq.onrender.com")
+      .catch(() => {});
+  }, []);
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
@@ -38,7 +43,7 @@ function App() {
         setError("Unexpected response from server.");
         return;
       }
-      
+
       setResults(data);
     } catch (err) {
       setError("Something went wrong. Make sure the backend is running.");
