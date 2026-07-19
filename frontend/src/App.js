@@ -377,7 +377,7 @@ function App() {
                   type="text"
                   value={authName}
                   onChange={(e) => setAuthName(e.target.value)}
-                  placeholder="Subham Rungta"
+                  placeholder=""
                   className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-400"
                 />
               </div>
@@ -389,7 +389,7 @@ function App() {
                 type="email"
                 value={authEmail}
                 onChange={(e) => setAuthEmail(e.target.value)}
-                placeholder="you@example.com"
+                placeholder=""
                 className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-400"
               />
             </div>
