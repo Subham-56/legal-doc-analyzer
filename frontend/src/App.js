@@ -1,6 +1,16 @@
 import { useState, useEffect } from 'react';
 
+const API = "https://legal-doc-analyzer-backend-2wdq.onrender.com"
+
 function App() {
+  const [token, setToken] = useState(localStorage.getItem("token"));
+  const [userEmail, setUserEmail] = useState(localStorage.getItem("email"));
+  const [authMode, setAuthMode] = useState("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
@@ -8,10 +18,48 @@ function App() {
   const [warming, setWarming] = useState(true);
 
   useEffect(() => {
-      fetch("https://legal-doc-analyzer-backend-2wdq.onrender.com")
+      fetch(API)
         .then(() => setWarming(false))
         .catch(() => setWarming(false));
   }, []);
+
+  const handleAuth = async () => {
+    setAuthLoading(true);
+    setAuthError("");
+
+    try {
+      const res = await fetch(`${API}/${authMode}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: authEmail, password: authPassword })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok){
+        setAuthError(data.detail || "Something went wrong.");
+        return;
+      }
+
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("email", data.email);
+      setToken(data.token);
+      setUserEmail(data.email);
+    } catch (err) {
+      setAuthError("Could not connect to server.");
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("email");
+    setToken(null);
+    setUserEmail(null);
+    setResults(null);
+    setFile(null);
+  }
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
@@ -28,14 +76,19 @@ function App() {
     formData.append("file", file);
 
     try {
-      const res = await fetch("https://legal-doc-analyzer-backend-2wdq.onrender.com/analyze", {
+      const res = await fetch(`${API}/analyze`, {
         method: "POST",
+        headers: { "Authorization": `Bearer ${token}` },
         body: formData
       });
 
       const data = await res.json();
 
       if (!res.ok) {
+        if (res.status === 401) {
+          handleLogout();
+          return;
+        }
         setError(data.detail || "Something went wrong.");
         return;
       }
@@ -64,19 +117,94 @@ function App() {
 
   const counts = getRiskCounts();
 
+  // Auth Page
+  if (!token) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-800 to-gray-900 text-white flex items-center justify-center px-4">
+        <div className="w-full max-w-md">
+
+          <div className="text-center mb-8">
+            <span className="text-4xl">⚖️</span>
+            <h1 className="text-2xl font-bold mt-2">LegalScan AI</h1>
+            <p className="text-gray-400 text-sm mt-1">AI-powered legal document analysis</p>
+          </div>
+
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-8 backdrop-blur-sm">
+            <h2 className="text-xl font-semibold mb-6">
+              {authMode === "login" ? "Welcome Back" : "Create account"}
+            </h2>
+
+            <div className="mb-4">
+              <label className="text-sm text-gray-400 mb-1 block">Email</label>
+              <input
+                type="email"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-400"
+              />
+            </div>
+
+            <div className="mb-6">
+              <label className="text-sm text-gray-400 mb-1 block">Password</label>
+              <input
+                type="password"
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-400"
+              />
+            </div>
+
+            {authError && (
+              <div className="mb-4 bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-lg">
+                {authError}
+              </div>
+            )}
+
+            <button
+              onClick={handleAuth}
+              disabled={authLoading}
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:opacity-40 text-white font-semibold py-3 rounded-xl transition-all"
+            >
+              {authLoading ? "Please wait..." : authMode === "login" ? "Sign In" : "Create Account"}
+            </button>
+
+            <p className="text-center text-gray-400 text-sm mt-4">
+              {authMode === "login" ? "Don't have an account? " : "Already have an account? "}
+              <button
+                onClick={() => { setAuthMode(authMode === "login" ? "signup" : "login"); setAuthError(""); }}
+                className="text-blue-400 hover:text-blue-300"
+              >
+                {authMode === "login" ? "Sign up" : "Sign in"}
+              </button>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Main App
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-800 to-gray-900 text-white">
 
-      {/* Navbar */}
       <nav className="border-b border-white/10 px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-2xl">⚖️</span>
           <span className="font-bold text-lg tracking-tight">LegalScan AI</span>
         </div>
-        <span className="text-sm text-gray-400">Powered by Gemini AI</span>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-gray-400">{userEmail}</span>
+          <button
+            onClick={handleLogout}
+            className="text-sm bg-white/10 hover:bg-white/20 px-4 py-1.5 rounded-lg transition-all"
+          >
+            Logout
+          </button>
+        </div>
       </nav>
 
-      {/* Hero Section */}
       <div className="max-w-4xl mx-auto px-4 pt-20 pb-12 text-center">
         <div className="inline-block bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold px-3 py-1 rounded-full mb-6">
           AI-Powered Legal Analysis
@@ -92,7 +220,6 @@ function App() {
           Upload any legal PDF — contracts, NDAs, rent agreements — and our AI instantly identifies risky clauses with plain-English explanations.
         </p>
 
-        {/* How it works */}
         <div className="grid grid-cols-3 gap-4 mb-16">
           {[
             { icon: "📄", step: "1", title: "Upload PDF", desc: "Drop any legal document" },
@@ -108,15 +235,14 @@ function App() {
           ))}
         </div>
 
-        {warming && (
-          <div className="mb-4 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm px-4 py-3 rounded-lg">
-            ⏳ Warming up backend server, please wait a moment...
-          </div>
-        )}
-
-        {/* Upload Section */}
         <div className="bg-white/5 border border-white/10 rounded-2xl p-8 backdrop-blur-sm">
           <h2 className="text-xl font-semibold mb-6">Analyze Your Document</h2>
+
+          {warming && (
+            <div className="mb-4 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm px-4 py-3 rounded-lg">
+              ⏳ Warming up backend server, please wait a moment...
+            </div>
+          )}
 
           <label className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-white/20 rounded-xl cursor-pointer hover:border-blue-400/50 hover:bg-white/5 transition-all">
             <span className="text-3xl mb-2">📁</span>
@@ -148,11 +274,8 @@ function App() {
         </div>
       </div>
 
-      {/* Results Section */}
       {results && (
         <div className="max-w-4xl mx-auto px-4 pb-20">
-
-          {/* Risk Summary */}
           <div className="grid grid-cols-3 gap-4 mb-8">
             <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-center">
               <div className="text-3xl font-bold text-red-400">{counts.high}</div>
@@ -168,7 +291,6 @@ function App() {
             </div>
           </div>
 
-          {/* Clause Cards */}
           <h3 className="text-xl font-semibold mb-4">Detailed Analysis</h3>
           {results.map((item, index) => (
             <div
@@ -192,7 +314,6 @@ function App() {
           ))}
         </div>
       )}
-
     </div>
   );
 }

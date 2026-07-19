@@ -1,22 +1,30 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from google import genai
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, Column, Integer, String, JSON, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime
+from datetime import datetime, timedelta
+from jose import jwt, JWTError
+import bcrypt
 import fitz
 import os
 import json
 
 load_dotenv()
+
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware, 
-    allow_origins=["http://localhost:3000", "https://legal-doc-analyzer-dun.vercel.app"],
+    allow_origins=[
+        "http://localhost:3000", 
+        "http://localhost:3001", 
+        "https://legal-doc-analyzer-dun.vercel.app"
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -24,25 +32,114 @@ app.add_middleware(
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = "HS256"
+TOKEN_EXPIRE_HOURS = 24
+
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
+security = HTTPBearer()
+
+# --- Database Models ---
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True)
+    email = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
 
 class Analysis(Base):
     __tablename__ = "analyses"
     id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=False)
     filename = Column(String)
     result = Column(JSON)
     created_at = Column(DateTime, default=datetime.now)
 
 Base.metadata.create_all(bind=engine)
 
+# --- Auth Helpers ---
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+def verify_password(password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(password.encode(), hashed.encode())
+
+def create_token(user_id: int, email: str) -> str:
+    payload = {
+        "user_id": user_id,
+        "email": email,
+        "exp": datetime.utcnow() + timedelta(hours=TOKEN_EXPIRE_HOURS)
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+# --- Auth Routes ---
+
 @app.get("/")
 def read_root():
     return {"message": "Legal Doc Analyzer API is running"}
 
+@app.post("/signup")
+def signup(data: dict):
+    email = data.get("email")
+    password = data.get("password")
+
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password required")
+    
+    if len(password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+
+    db = SessionLocal()
+    try:
+        existing = db.query(User).filter(User.email == email).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already registered")
+
+        user = User(email=email, password_hash=hash_password(password))
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        token = create_token(user.id, user.email)
+        return {"token": token, "email": user.email}
+    finally:
+        db.close()
+
+@app.post("/login")
+def login(data: dict):
+    email = data.get("email")
+    password = data.get("password")
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        if not user or not verify_password(password, user.password_hash):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+
+        token = create_token(user.id, user.email)
+        return {"token": token, "email": email}
+    finally:
+        db.close()
+
+# --- Analysis Route ---
+
 @app.post("/analyze")
-async def analyze_document(file: UploadFile = File(...)):
+async def analyze_document(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
     try:
@@ -54,8 +151,8 @@ async def analyze_document(file: UploadFile = File(...)):
         doc.close()
 
         if not text.strip():
-            raise HTTPException(status_code=400, detail="Could not extract text from PDF. It may be scanned or image-based.")
-
+            raise HTTPException(status_code=400, detail="Could not extract text from PDF.")
+        
         prompt = f"""
         You are a legal document analyzer.
         Analyze the following legal text and return a JSON array.
@@ -89,7 +186,11 @@ async def analyze_document(file: UploadFile = File(...)):
     
     db = SessionLocal()
     try:
-        analysis = Analysis(filename = file.filename, result = result)
+        analysis = Analysis(
+            user_id=current_user["user_id"],
+            filename = file.filename, 
+            result = result
+        )
         db.add(analysis)
         db.commit()
     except Exception:
@@ -98,3 +199,26 @@ async def analyze_document(file: UploadFile = File(...)):
         db.close()
 
     return JSONResponse(content=result)
+
+@app.get("/history")
+def get_history(current_user: dict = Depends(get_current_user)):
+    db = SessionLocal()
+    try:
+        analyses = db.query(Analysis).filter(
+            Analysis.user_id == current_user["user_id"]
+        ).order_by(Analysis.created_at.desc()).all()
+
+        return [
+            {
+                "id": a.id,
+                "filename": a.filename,
+                "created_at": a.created_at.isoformat(),
+                "risk_summary": {
+                    "high": sum(1 for r in a.result if r["risk_level"] == "high"),
+                    "medium": sum(1 for r in a.result if r["risk_level"] == "medium"),
+                    "low": sum(1 for r in a.result if r["risk_level"] == "low"),
+                }
+            } for a in analyses
+        ]
+    finally:
+        db.close()
