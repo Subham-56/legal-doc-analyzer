@@ -46,6 +46,7 @@ security = HTTPBearer()
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False)
     password_hash = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.now)
@@ -68,10 +69,11 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode(), hashed.encode())
 
-def create_token(user_id: int, email: str) -> str:
+def create_token(user_id: int, email: str, name: str) -> str:
     payload = {
         "user_id": user_id,
         "email": email,
+        "name": name,
         "exp": datetime.utcnow() + timedelta(hours=TOKEN_EXPIRE_HOURS)
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
@@ -94,9 +96,10 @@ def read_root():
 def signup(data: dict):
     email = data.get("email")
     password = data.get("password")
+    name = data.get("name")
 
-    if not email or not password:
-        raise HTTPException(status_code=400, detail="Email and password required")
+    if not email or not password or not name:
+        raise HTTPException(status_code=400, detail="Name, email and password required")
     
     if len(password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
@@ -107,13 +110,13 @@ def signup(data: dict):
         if existing:
             raise HTTPException(status_code=400, detail="Email already registered")
 
-        user = User(email=email, password_hash=hash_password(password))
+        user = User(name=name, email=email, password_hash=hash_password(password))
         db.add(user)
         db.commit()
         db.refresh(user)
 
-        token = create_token(user.id, user.email)
-        return {"token": token, "email": user.email}
+        token = create_token(user.id, user.email, user.name)
+        return {"token": token, "email": user.email, "name": user.name}
     finally:
         db.close()
 
@@ -128,8 +131,8 @@ def login(data: dict):
         if not user or not verify_password(password, user.password_hash):
             raise HTTPException(status_code=401, detail="Invalid email or password")
 
-        token = create_token(user.id, user.email)
-        return {"token": token, "email": email}
+        token = create_token(user.id, user.email, user.name)
+        return {"token": token, "email": user.email, "name": user.name}
     finally:
         db.close()
 
