@@ -216,12 +216,14 @@ def get_history(current_user: dict = Depends(get_current_user)):
                 "id": a.id,
                 "filename": a.filename,
                 "created_at": a.created_at.isoformat(),
+                "result": a.result,
                 "risk_summary": {
                     "high": sum(1 for r in a.result if r["risk_level"] == "high"),
                     "medium": sum(1 for r in a.result if r["risk_level"] == "medium"),
                     "low": sum(1 for r in a.result if r["risk_level"] == "low"),
                 }
-            } for a in analyses
+            }
+            for a in analyses
         ]
     finally:
         db.close()
