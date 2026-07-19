@@ -1,26 +1,30 @@
 import { useState, useEffect } from 'react';
 
-const API = "https://legal-doc-analyzer-backend-2wdq.onrender.com"
+const API = "https://legal-doc-analyzer-backend-2wdq.onrender.com";
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
-  const [userEmail, setUserEmail] = useState(localStorage.getItem("email"));
+  const [userName, setUserName] = useState(localStorage.getItem("name"));
   const [authMode, setAuthMode] = useState("login");
+  const [authName, setAuthName] = useState("");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
 
+  const [page, setPage] = useState("home");
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
   const [warming, setWarming] = useState(true);
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
-      fetch(API)
-        .then(() => setWarming(false))
-        .catch(() => setWarming(false));
+    fetch(API)
+      .then(() => setWarming(false))
+      .catch(() => setWarming(false));
   }, []);
 
   const handleAuth = async () => {
@@ -28,23 +32,30 @@ function App() {
     setAuthError("");
 
     try {
+      const body = authMode === "signup"
+        ? { name: authName, email: authEmail, password: authPassword }
+        : { email: authEmail, password: authPassword };
+
       const res = await fetch(`${API}/${authMode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: authEmail, password: authPassword })
+        body: JSON.stringify(body)
       });
 
       const data = await res.json();
 
-      if (!res.ok){
+      if (!res.ok) {
         setAuthError(data.detail || "Something went wrong.");
         return;
       }
 
       localStorage.setItem("token", data.token);
-      localStorage.setItem("email", data.email);
+      localStorage.setItem("name", data.name);
       setToken(data.token);
-      setUserEmail(data.email);
+      setUserName(data.name);
+      setAuthEmail("");
+      setAuthPassword("");
+      setAuthName("");
     } catch (err) {
       setAuthError("Could not connect to server.");
     } finally {
@@ -54,11 +65,23 @@ function App() {
 
   const handleLogout = () => {
     localStorage.removeItem("token");
-    localStorage.removeItem("email");
+    localStorage.removeItem("name");
     setToken(null);
-    setUserEmail(null);
+    setUserName(null);
     setResults(null);
     setFile(null);
+    setAuthEmail("");
+    setAuthPassword("");
+    setAuthName("");
+    setPage("home");
+  }
+
+  const handleSwitchAuthMode = () => {
+    setAuthMode(authMode === "login" ? "signup" : "login");
+    setAuthError("");
+    setAuthEmail("");
+    setAuthPassword("");
+    setAuthName("");
   }
 
   const handleFileChange = (e) => {
@@ -85,10 +108,7 @@ function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        if (res.status === 401) {
-          handleLogout();
-          return;
-        }
+        if (res.status === 401) { handleLogout(); return; }
         setError(data.detail || "Something went wrong.");
         return;
       }
@@ -104,6 +124,26 @@ function App() {
     } finally {
       setLoading(false);
     }
+  }
+
+  const loadHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(`${API}/history`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await res.json();
+      setHistory(data);
+    } catch (err) {
+      console.error("Failed to load history");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  const handleHistoryClick = () => {
+    setPage("history");
+    loadHistory();
   }
 
   const getRiskCounts = () => {
@@ -122,7 +162,6 @@ function App() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-800 to-gray-900 text-white flex items-center justify-center px-4">
         <div className="w-full max-w-md">
-
           <div className="text-center mb-8">
             <span className="text-4xl">⚖️</span>
             <h1 className="text-2xl font-bold mt-2">LegalScan AI</h1>
@@ -131,8 +170,21 @@ function App() {
 
           <div className="bg-white/5 border border-white/10 rounded-2xl p-8 backdrop-blur-sm">
             <h2 className="text-xl font-semibold mb-6">
-              {authMode === "login" ? "Welcome Back" : "Create account"}
+              {authMode === "login" ? "Welcome back" : "Create account"}
             </h2>
+
+            {authMode === "signup" && (
+              <div className="mb-4">
+                <label className="text-sm text-gray-400 mb-1 block">Full Name</label>
+                <input
+                  type="text"
+                  value={authName}
+                  onChange={(e) => setAuthName(e.target.value)}
+                  placeholder="Subham Rungta"
+                  className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-400"
+                />
+              </div>
+            )}
 
             <div className="mb-4">
               <label className="text-sm text-gray-400 mb-1 block">Email</label>
@@ -173,7 +225,7 @@ function App() {
             <p className="text-center text-gray-400 text-sm mt-4">
               {authMode === "login" ? "Don't have an account? " : "Already have an account? "}
               <button
-                onClick={() => { setAuthMode(authMode === "login" ? "signup" : "login"); setAuthError(""); }}
+                onClick={handleSwitchAuthMode}
                 className="text-blue-400 hover:text-blue-300"
               >
                 {authMode === "login" ? "Sign up" : "Sign in"}
@@ -185,17 +237,111 @@ function App() {
     );
   }
 
-  // Main App
+  // History Page
+  if (page === "history") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-800 to-gray-900 text-white">
+        <nav className="border-b border-white/10 px-8 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">⚖️</span>
+            <span className="font-bold text-lg tracking-tight">LegalScan AI</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setPage("home")}
+              className="text-sm text-gray-400 hover:text-white transition-all"
+            >
+              Analyzer
+            </button>
+            <button
+              onClick={handleHistoryClick}
+              className="text-sm bg-blue-500/20 text-blue-400 px-4 py-1.5 rounded-lg"
+            >
+              History
+            </button>
+            <span className="text-sm text-gray-400">{userName}</span>
+            <button
+              onClick={handleLogout}
+              className="text-sm bg-white/10 hover:bg-white/20 px-4 py-1.5 rounded-lg transition-all"
+            >
+              Logout
+            </button>
+          </div>
+        </nav>
+
+        <div className="max-w-4xl mx-auto px-4 pt-12 pb-20">
+          <h2 className="text-2xl font-bold mb-8">Analysis History</h2>
+
+          {historyLoading && (
+            <div className="text-gray-400 text-center py-12">Loading your history...</div>
+          )}
+
+          {!historyLoading && history.length === 0 && (
+            <div className="text-center py-12 bg-white/5 border border-white/10 rounded-2xl">
+              <div className="text-4xl mb-4">📂</div>
+              <p className="text-gray-400">No analyses yet. Upload a document to get started.</p>
+              <button
+                onClick={() => setPage("home")}
+                className="mt-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-xl text-sm"
+              >
+                Analyze a Document
+              </button>
+            </div>
+          )}
+
+          {history.map((item) => (
+            <div key={item.id} className="bg-white/5 border border-white/10 rounded-xl p-6 mb-4 backdrop-blur-sm">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-medium text-white">📄 {item.filename}</p>
+                  <p className="text-gray-400 text-sm mt-1">
+                    {new Date(item.created_at).toLocaleDateString("en-IN", {
+                      day: "numeric", month: "short", year: "numeric",
+                      hour: "2-digit", minute: "2-digit"
+                    })}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <span className="bg-red-500/20 text-red-400 text-xs px-2 py-1 rounded-full">
+                    {item.risk_summary.high} High
+                  </span>
+                  <span className="bg-yellow-500/20 text-yellow-400 text-xs px-2 py-1 rounded-full">
+                    {item.risk_summary.medium} Medium
+                  </span>
+                  <span className="bg-green-500/20 text-green-400 text-xs px-2 py-1 rounded-full">
+                    {item.risk_summary.low} Low
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Home Page
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-800 to-gray-900 text-white">
-
       <nav className="border-b border-white/10 px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-2xl">⚖️</span>
           <span className="font-bold text-lg tracking-tight">LegalScan AI</span>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-400">{userEmail}</span>
+          <button
+            onClick={() => setPage("home")}
+            className="text-sm bg-blue-500/20 text-blue-400 px-4 py-1.5 rounded-lg"
+          >
+            Analyzer
+          </button>
+          <button
+            onClick={handleHistoryClick}
+            className="text-sm text-gray-400 hover:text-white transition-all"
+          >
+            History
+          </button>
+          <span className="text-sm text-gray-400">👤 {userName}</span>
           <button
             onClick={handleLogout}
             className="text-sm bg-white/10 hover:bg-white/20 px-4 py-1.5 rounded-lg transition-all"
