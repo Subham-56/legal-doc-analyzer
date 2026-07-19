@@ -6,3 +6,5 @@ google-genai
 python-dotenv
 sqlalchemy
 psycopg2-binary
+bcrypt
+python-jose[cryptography]
