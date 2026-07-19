@@ -1,20 +1,21 @@
-# AI Legal Document Analyzer
+# LegalScan AI — Legal Document Analyzer
 
-🔗 **Live Demo:** https://legal-doc-analyzer-dun.vercel.app  
+🔗 **Live Demo:** https://legal-doc-analyzer-dun.vercel.app
 📁 **GitHub:** https://github.com/Subham-56/legal-doc-analyzer
 
-An AI-powered full-stack web application that analyzes legal PDF documents and identifies risky clauses with plain-English explanations and color-coded risk levels.
+An AI-powered full-stack web application that analyzes legal PDF documents, identifies risky clauses, and generates downloadable risk reports — with user authentication and analysis history.
 
 ---
 
 ## Features
 
-- Upload any legal PDF — contracts, NDAs, rent agreements, employment offers
-- Extract and analyze text using Google Gemini AI
-- Classify each clause as high, medium, or low risk
-- Display color-coded results with plain-English explanations
-- Validate uploads and handle API failures gracefully
-- Store all analyses in PostgreSQL via SQLAlchemy
+- **User Authentication** — Secure signup and login with bcrypt password hashing and JWT tokens
+- **AI-Powered Analysis** — Upload any legal PDF and Google Gemini identifies risky clauses instantly
+- **Risk Classification** — Every clause classified as High, Medium, or Low risk with plain-English explanations
+- **Analysis History** — All analyses saved per user, accessible anytime from the History dashboard
+- **PDF Report Export** — Download a professional risk report for any analysis
+- **Input Validation** — Rejects non-PDFs, scanned documents, and handles API failures gracefully
+- **Persistent Sessions** — Stay logged in across browser sessions via localStorage
 
 ---
 
@@ -22,24 +23,27 @@ An AI-powered full-stack web application that analyzes legal PDF documents and i
 
 | Layer | Technology |
 |---|---|
-| Frontend | React, Tailwind CSS |
+| Frontend | React, Tailwind CSS, jsPDF |
 | Backend | FastAPI, Python |
+| Authentication | JWT (python-jose), bcrypt |
 | AI | Google Gemini API |
 | PDF Parsing | PyMuPDF |
 | Database | PostgreSQL, SQLAlchemy |
-| Deployment | Vercel (frontend), Render (backend) |
+| Deployment | Vercel (frontend), Render (backend + database) |
 
 ---
 
 ## How It Works
 
-1. User uploads a PDF from the React frontend
-2. Frontend sends the file to `POST /analyze` on the FastAPI backend
-3. Backend extracts text using PyMuPDF
-4. Extracted text is sent to Gemini with a structured prompt
-5. Gemini returns a JSON array of risky clauses with risk levels and explanations
-6. Backend validates the response and saves it to PostgreSQL
-7. Frontend renders each clause as a color-coded risk card
+1. User signs up or logs in — JWT token issued and stored in localStorage
+2. User uploads a legal PDF from the React frontend
+3. Frontend sends the file to `POST /analyze` with JWT in the Authorization header
+4. Backend validates the token, extracts text using PyMuPDF
+5. Extracted text is sent to Gemini with a structured prompt
+6. Gemini returns a JSON array of risky clauses with risk levels and explanations
+7. Backend saves the analysis to PostgreSQL linked to the user
+8. Frontend renders color-coded risk cards and risk summary
+9. User can download a professional PDF report or view history of past analyses
 
 ---
 
@@ -49,11 +53,10 @@ An AI-powered full-stack web application that analyzes legal PDF documents and i
 legal-doc-analyzer/
 ├── backend/
 │   ├── main.py
-│   ├── requirements.txt
-│   ├── test_gemini.py
-│   └── test_pdf.py
+│   └── requirements.txt
 ├── frontend/
 │   ├── public/
+│   │   └── index.html
 │   └── src/
 │       ├── App.js
 │       ├── index.css
@@ -77,15 +80,20 @@ Create a `.env` file inside `backend/`:
 ```env
 GEMINI_API_KEY=your_gemini_api_key
 DATABASE_URL=postgresql://username:password@localhost:5432/legaldoc
+SECRET_KEY=your_secret_key
+```
+
+Generate a secret key:
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
 Start the server:
-
 ```bash
 uvicorn main:app --reload
 ```
 
-API runs at `http://127.0.0.1:8000`  
+API runs at `http://127.0.0.1:8000`
 Interactive docs at `http://127.0.0.1:8000/docs`
 
 ### Frontend
@@ -98,20 +106,28 @@ npm start
 
 App runs at `http://localhost:3000`
 
-Update the API URL in `frontend/src/App.js` to point to `http://localhost:8000` for local development.
+Update the `API` constant in `frontend/src/App.js` to `http://localhost:8000` for local development.
 
 ---
 
 ## API Reference
 
+### `POST /signup`
+Creates a new user account.
+```json
+{ "name": "Subham", "email": "you@example.com", "password": "yourpassword" }
+```
+
+### `POST /login`
+Authenticates a user and returns a JWT token.
+```json
+{ "email": "you@example.com", "password": "yourpassword" }
+```
+
 ### `POST /analyze`
-
-Accepts a PDF file upload and returns a JSON array of risky clauses.
-
-**Request:** `multipart/form-data` with a `file` field containing a PDF
+Requires Bearer token. Accepts a PDF file upload and returns a JSON array of risky clauses.
 
 **Response:**
-
 ```json
 [
   {
@@ -122,9 +138,8 @@ Accepts a PDF file upload and returns a JSON array of risky clauses.
 ]
 ```
 
-**Error responses:**
-- `400` — Non-PDF file or unreadable document
-- `500` — AI response failure or server error
+### `GET /history`
+Requires Bearer token. Returns all analyses for the authenticated user with risk summaries and full results.
 
 ---
 
@@ -132,16 +147,17 @@ Accepts a PDF file upload and returns a JSON array of risky clauses.
 
 - Rejects non-PDF uploads with a clear error message
 - Returns 400 if text cannot be extracted from scanned PDFs
-- Validates that AI response is a proper JSON array before rendering
+- Validates AI response is a proper JSON array before rendering
 - Rolls back database session if persistence fails
 - Frontend displays error messages for all failure cases
+- Auto-logout on expired or invalid JWT token
 
 ---
 
 ## Deployment
 
 - Frontend deployed on **Vercel** — auto-deploys on every GitHub push
-- Backend deployed on **Render** — free tier, spins down after inactivity
+- Backend deployed on **Render** — Python web service
 - PostgreSQL hosted on **Render** free tier
 
 ---
@@ -149,14 +165,13 @@ Accepts a PDF file upload and returns a JSON array of risky clauses.
 ## Future Improvements
 
 - OCR support for scanned PDFs
-- User authentication and analysis history
-- Downloadable PDF reports
 - DOCX and image upload support
+- Clause comparison between two documents
+- Email notifications for high-risk documents
 - Move API URL to environment variables in frontend
-- Unit and integration tests
 
 ---
 
 ## Resume Summary
 
-Built and deployed a full-stack AI legal document analysis platform using React, FastAPI, PostgreSQL, and Google Gemini API. The app extracts text from uploaded PDFs, evaluates clauses for legal risk, and returns structured plain-English explanations through a responsive web interface.
+Built and deployed LegalScan AI — a full-stack AI legal document analysis platform with user authentication, per-user analysis history, and PDF report generation. Uses React, FastAPI, PostgreSQL, and Google Gemini API to extract and risk-rate clauses from legal PDFs with plain-English explanations.

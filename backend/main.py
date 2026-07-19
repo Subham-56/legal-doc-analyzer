@@ -125,6 +125,9 @@ def login(data: dict):
     email = data.get("email")
     password = data.get("password")
 
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password required")
+
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.email == email).first()
@@ -143,7 +146,7 @@ async def analyze_document(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user)
 ):
-    if not file.filename.endswith(".pdf"):
+    if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
     try:
         contents = await file.read()
@@ -198,6 +201,7 @@ async def analyze_document(
         db.commit()
     except Exception:
         db.rollback()
+        raise HTTPException(status_code=500, detail="Analysis complete but failed to save to history. Please try again.")
     finally:
         db.close()
 

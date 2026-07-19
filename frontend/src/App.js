@@ -133,10 +133,27 @@ function App() {
       const res = await fetch(`${API}/history`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          handleLogout();
+          return;
+        }
+        setHistory([]);
+        return;
+      }
+
       const data = await res.json();
+
+      if (!Array.isArray(data)) {
+        setHistory([]);
+        return;
+      }
+
       setHistory(data);
     } catch (err) {
       console.error("Failed to load history");
+      setHistory([]);
     } finally {
       setHistoryLoading(false);
     }
